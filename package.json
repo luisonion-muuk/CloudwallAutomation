@@ -1,0 +1,24 @@
+{
+  "name": "cloudwall-automation",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {},
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@types/node": "^25.6.0"
+  },
+  "dependencies": {
+    "axios": "^1.15.0",
+    "cheerio": "^1.2.0",
+    "imap": "^0.8.19",
+    "js-yaml": "^4.1.1",
+    "mailparser": "^3.9.8",
+    "pg": "^8.20.0",
+    "ssh2": "^1.17.0"
+  }
+}

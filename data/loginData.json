@@ -1,0 +1,16 @@
+{
+  "extra_users": [
+    {
+      "username": "REPLACE_WITH_USERNAME",
+      "person_id": "REPLACE_WITH_PERSON_ID",
+      "email": "REPLACE_WITH_EMAIL",
+      "logout": true
+    },
+    {
+      "username": "REPLACE_WITH_USERNAME_2",
+      "person_id": "REPLACE_WITH_PERSON_ID_2",
+      "email": "REPLACE_WITH_EMAIL_2",
+      "logout": false
+    }
+  ]
+}

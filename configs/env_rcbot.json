@@ -1,0 +1,12 @@
+{
+  "server_host": "cw-pwright.aquent.io",
+  "server_port": "443",
+  "browser": "chrome",
+  "website": "vitamintalent",
+  "website_tld": ".com",
+  "order_app_host": "https://order-pwright.aquent.io",
+  "onboarding_app_host": "https://onboarding-pwright.aquent.io/",
+  "time_away_app_host": "https://time-away-pwright.aquent.io",
+  "talent_happy_path_host": "https://talent-pwright.aquent.com",
+  "create_order_api_host": "https://create-order-pwright.aquent.io"
+}

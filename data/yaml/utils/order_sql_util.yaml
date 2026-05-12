@@ -1,0 +1,46 @@
+create_order_with_posting_call: "SELECT tad_create_order_with_posting(%s)"
+
+create_order_without_posting_call: "SELECT tad_create_order_without_posting(%s)"
+
+get_user_id: "SELECT user_id FROM users WHERE user_name = '%s';"
+
+get_person_id: "SELECT person_id FROM users WHERE user_name = '%s' LIMIT 1;"
+
+minimum_sql:
+    client_id: '189766'
+    position_title: 'New Marvel Cartoon (TEST) SQL'
+    market_id: '11'
+    job_location: 'New York'
+
+maximum sql template with post:
+
+    client_id: '189766'
+
+    market_id: '11'
+    contact_user_name: 'Account, VT Test'
+    position_title: 'New Marvel Cartoon (TEST) SQL'
+    placement_type_id: '3'
+    country_code: 'US'
+    postal_code: '10011'
+    location: 'New York'
+    has_pre_interview_questions: false
+    order_status: '2'
+
+maximum sql template without post:
+    client_id: '189766'
+    position_title: 'New Marvel Cartoon (TEST) SQL'
+    market_id: '11'
+    contact_user_name: 'Account, VT Test'
+    agent_last_name: 'automation'
+    agent_first_name: 'test'
+    placement_type_id: '3'
+    has_pre_interview_questions: false
+    order_status: '2'
+    
+order_sql_fields: "created_by,report_to_person_id,agent_person_id,client_id, client_contact,market_id,position_title,
+    placement_type_id,description,has_pre_interview_questions,order_status,start_date,end_date,off_site_preference,
+    job_type_id integer,reason_created,how_heard,onboarding_notes,complete_onboarding,add_order_credit_agent_id,
+    add_order_credit_percentage,financial_rate_type,financial_regular_pay_rate,exclusive,direct,W2_IC,
+    use_dtr_timecards, order_importance,number_of_openings,account_manager,fulfillment_manager,assisted_by,paid_via_umbrella_company"
+
+post_sql_fields: "geographic_area_id,country_code,postal_code,v_location"

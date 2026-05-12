@@ -1,0 +1,63 @@
+talent_to_setup:
+  talent_name: Sms Opt In test
+  market: new_york
+  payroll_and_benefits: autofill
+  make_ready_to_work: true
+  talent_info:
+    first_name:
+    last_name:
+    profile_name:
+    address_1:
+    professional_title:
+    home_market_selector: 11 # Boston
+    minor_segment: 119 # CRE_Photographer
+    city: Boston
+    state: MA
+    postal_code: '02116'
+    phone: 8285750378
+    area_code: '617'
+
+# used to calculate 8:00am - 8:00pm for Talent's timezone (EST) from perspective of test (also EST)
+# 20:00 EST is 8:00pm EST
+setup_talent_timezone:
+  workday_start_hour: 8
+  workday_end_hour: 20
+
+new_york:
+  job_title: 'Gather Test Posting'
+  job_location_posting: 'New York, NY'
+  job_description: 'Test Automation Job Description Info'
+  placement_type:
+    value: '2' #Permanent
+    name: 'Permanent'
+  job_location:
+    value: '34'
+    name: 'US-New York-New York City'
+  market:
+    value: '11'
+    name: 'New York'
+  client:
+    partial_name: 'Marvel Cartoon' #id: 189766
+    complete_name: 'Marvel Cartoon (TEST)'
+    division: 'Aquent Corporate'
+  contact:
+    id: '2252335'
+    name: 'Wonder Woman'
+    phone_number: '565-787-9091'
+    email: 'kcroscup@gmail.com'
+    address_street: '149 West 5th Ave'
+    address_floor: '2nd Floor'
+    address_state: 'New York, NY 10011'
+    address_country: 'USA'
+  financial:
+    msp_name: 'Fieldglass'
+    vms_name: 'Fieldglass'
+  manager: 'Bee Wilkins'
+  order_status:
+    value: '1'
+    name: 'Inquiry'
+  salary_min: 1
+  salary_max: 2
+agent:
+  name: 'Automation, Test'
+  id: 1773265

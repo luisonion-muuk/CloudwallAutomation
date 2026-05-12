@@ -1,0 +1,107 @@
+candidate_last_name: 'Williams'
+email_body: 'Gather Gather Email Body: '
+email_signature: 'test automation'
+cc_email: 'cc@cc.com'
+bcc_email: 'bcc@bcc.com'
+invalid_email: 'invalid_email'
+one_recipient_error: 'You must have at least one recipient.'
+invalid_email_error: 'Please make sure that all email addresses are correct.'
+gather_body_text: 'The purpose of this email is to communicate important information regarding your business with Aquent.'
+new_york:
+  job_title: 'Nom Noms Tester'
+  job_location_posting: 'New York, NY'
+  job_description: 'Test Automation Job Description Info'
+  placement_type:
+    value: '2' #Permanent
+    name: 'Permanent'
+  job_location:
+    value: '34'
+    name: 'US-New York-New York City'
+  market:
+    value: '11'
+    name: 'New York'
+  client:
+    partial_name: 'Marvel Cartoon' #id: 189766
+    complete_name: 'Marvel Cartoon (TEST)'
+    division: 'Aquent Corporate'
+  contact:
+    id: '2252335'
+    name: 'Wonder Woman'
+    phone_number: '565-787-9091'
+    email: 'kcroscup@gmail.com'
+    address_street: '149 West 5th Ave'
+    address_floor: '2nd Floor'
+    address_state: 'New York, NY 10011'
+    address_country: 'USA'
+  financial:
+    msp_name: 'Fieldglass'
+    vms_name: 'Fieldglass'
+  manager: 'Bee Wilkins'
+  order_status:
+    value: '1'
+    name: 'Inquiry'
+  salary_min: 1
+  salary_max: 2
+agent:
+  name: 'Automation, Test'
+  id: 1773265
+activity_history:
+  custom_gather_event: 'Customized Gather Message Event'
+  candidate_status_set_to_gather_email: 'Candidate Status Set To Gather Sent (Email)'
+candidate_status_gather_sent: 'Gather Sent (Custom Email)'
+gather_subject: 'New Opportunity Nom Noms Tester'
+remote: 'Remote'
+gatherable_talent:
+  - 2785830 # Sophia Dai
+  - 607568 # Peninna Jeruzalmi
+  - 131746 # Joseph Kilrain
+jon_deery_phone_number: '(617) 535-6055'
+talent_to_setup:
+  talent_name: Sms Opt In test
+  market: new_york
+  payroll_and_benefits: autofill
+  make_ready_to_work: true
+  talent_info:
+    first_name:
+    last_name:
+    profile_name:
+    address_1:
+    professional_title:
+    home_market_selector: 11 # Boston
+    minor_segment: 119 # CRE_Photographer
+    city: Boston
+    state: MA
+    postal_code: '02116'
+    phone: 8285750378
+    area_code: '617'
+
+automated_custom_question: 'Automated custom question +timestamp'
+pre_interview_question_answers:
+  - 'Yes'
+  - 'No'
+  - 'Automated custom answer +timestamp'
+
+expected_activity_type_string: "Activity Type Contents:\nCandidate Status Set To Gather Interested (Custom Email)"
+expected_talent_response_string: "Are you authorized to work in the US?\nYes\n\nDo you require a work visa sponsorship now or in the future?\nNo\n\n%s\n%s"
+
+# query for gatherable talent in case data changes
+#  SELECT
+#  person.person_id,
+#  first_name,
+#  last_name
+#  FROM
+#  person
+#  LEFT JOIN email_subscription ON email_subscription.email = normalize_email(person.email)
+#  LEFT JOIN sms_preference USING(person_id)
+#  LEFT JOIN (SELECT DISTINCT to_number FROM mobile_opt_out WHERE is_active = TRUE) opted_out_mobile ON opted_out_mobile.to_number = 1 || regexp_replace(person.main_phone, '[^0-9]', '', 'g')
+#  LEFT JOIN person_emp_info pei USING(person_id)
+#  LEFT JOIN talent_subscription USING(person_id)
+#  LEFT JOIN market m ON m.market_id = pei.home_market_id
+#  WHERE
+#  email_subscription.optin_global = true
+#  AND sms_preference.sms_preference = true
+#  AND pei.country_id = 1
+#  AND talent_subscription.global_subscribed = 1
+#  AND employee_status_id NOT IN (40, 43)
+#  LIMIT 100;
+

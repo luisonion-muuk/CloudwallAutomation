@@ -1,0 +1,157 @@
+{
+  "entityCommonData": {
+    "amsterdam": {
+      "home_market_selector": 43,
+      "city": "Amsterdam",
+      "state": "NH",
+      "postal_code": "1072 XW",
+      "phone": "+31 20 577 1111"
+    },
+    "atlanta": {
+      "home_market_selector": 23,
+      "city": "Atlanta",
+      "state": "GA",
+      "postal_code": "30309",
+      "area_code": "404"
+    },
+    "boise": {
+      "home_market_selector": 102,
+      "city": "Boise",
+      "state": "ID",
+      "postal_code": "83713",
+      "area_code": "208"
+    },
+    "boston": {
+      "home_market_selector": 10,
+      "city": "Boston",
+      "state": "MA",
+      "postal_code": "02116",
+      "area_code": "617"
+    },
+    "chicago": {
+      "home_market_selector": 14,
+      "city": "Chicago",
+      "state": "IL",
+      "postal_code": "60602",
+      "area_code": "312"
+    },
+    "detroit": {
+      "home_market_selector": 24,
+      "city": "Detroit",
+      "state": "MI",
+      "postal_code": "48067",
+      "area_code": "248"
+    },
+    "paris": {
+      "home_market_selector": 35,
+      "city": "Paris",
+      "state": "FRA",
+      "postal_code": "75000",
+      "area_code": "01"
+    },
+    "germany": {
+      "home_market_selector": 115,
+      "city": "Germany",
+      "state": "DE",
+      "postal_code": "10115",
+      "area_code": "617"
+    },
+    "london": {
+      "home_market_selector": 29,
+      "city": "London",
+      "state": "LON",
+      "postal_code": "SW1Y 4EN",
+      "area_code": "020"
+    },
+    "los_angeles": {
+      "home_market_selector": 13,
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90001",
+      "area_code": "661"
+    },
+    "melbourne": {
+      "home_market_selector": 36,
+      "city": "Melbourne",
+      "state": "VIC",
+      "postal_code": "32901",
+      "area_code": "321"
+    },
+    "new_york": {
+      "home_market_selector": 11,
+      "city": "New York",
+      "state": "NY",
+      "postal_code": "10001",
+      "area_code": "212"
+    },
+    "philadelphia": {
+      "home_market_selector": 18,
+      "city": "Philadelphia",
+      "state": "PA",
+      "postal_code": "17428",
+      "area_code": "610"
+    },
+    "san_diego": {
+      "home_market_selector": 16,
+      "city": "San Diego",
+      "state": "CA",
+      "postal_code": "92101",
+      "area_code": "619"
+    },
+    "san_francisco": {
+      "home_market_selector": 12,
+      "city": "San Francisco",
+      "state": "CA",
+      "postal_code": "94108",
+      "area_code": "415"
+    },
+    "seattle": {
+      "home_market_selector": 17,
+      "city": "Seattle",
+      "state": "WA",
+      "postal_code": "98103",
+      "area_code": "206"
+    },
+    "silicon_valley": {
+      "home_market_selector": 15,
+      "city": "San Jose",
+      "state": "CA",
+      "postal_code": "95148",
+      "area_code": "408"
+    },
+    "connecticut": {
+      "home_market_selector": 34,
+      "city": "",
+      "state": "CT"
+    },
+    "sydney": {
+      "home_market_selector": 39,
+      "city": "Sydney",
+      "state": "NSW",
+      "postal_code": "2000",
+      "phone": "+61 2 8288 8288"
+    },
+    "toronto": {
+      "home_market_selector": 40,
+      "city": "Toronto",
+      "state": "ON",
+      "postal_code": "M4B 1B3",
+      "area_code": "416"
+    },
+    "vancouver": {
+      "home_market_selector": 47,
+      "city": "Vancouver",
+      "state": "BC",
+      "postal_code": "V5K 0A1",
+      "area_code": "604"
+    }
+  },
+  "marketAbbreviations": {
+    "boise": "BOI",
+    "boston": "BOS",
+    "chicago": "CHI",
+    "los_angeles": "LA",
+    "new_york": "NYC",
+    "toronto": "TOR"
+  }
+}

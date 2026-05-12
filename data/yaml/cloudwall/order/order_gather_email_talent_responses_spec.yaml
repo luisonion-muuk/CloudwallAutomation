@@ -1,0 +1,171 @@
+#this is a vitamin T order
+order:
+  id: 600038320
+  job_title: "Ice Cream QA Tester"
+talent_to_setup:
+  talent_name: Gather Talent Test
+  market: new_york
+  payroll_and_benefits: autofill
+  make_ready_to_work: true
+  talent_info:
+    first_name:
+    last_name:
+    profile_name:
+    address_1:
+    professional_title:
+    home_market_selector: 11 # Boston
+    minor_segment: 119 # CRE_Photographer
+    city: Boston
+    state: MA
+    postal_code: '02116'
+    # google phone number assigned to the CW Support user
+    phone: 8572468690
+    area_code: '617'
+new_york:
+  job_title: 'Gather Test Posting'
+  job_location_posting: 'New York, NY'
+  job_description: 'Test Automation Job Description Info'
+  salary_min: '100000'
+  salary_max: '150000'
+  placement_type:
+    value: '2' #Permanent
+    name: 'Permanent'
+  job_location:
+    value: '34'
+    name: 'US-New York-New York City'
+  market:
+    value: '11'
+    name: 'New York'
+  client:
+    partial_name: 'Marvel Cartoon' #id: 189766
+    complete_name: 'Marvel Cartoon (TEST)'
+    division: 'Aquent Corporate'
+  contact:
+    id: '2252335'
+    name: 'Wonder Woman'
+    phone_number: '565-787-9091'
+    email: 'kcroscup@gmail.com'
+    address_street: '149 West 5th Ave'
+    address_floor: '2nd Floor'
+    address_state: 'New York, NY 10011'
+    address_country: 'USA'
+  financial:
+    msp_name: 'Fieldglass'
+    vms_name: 'Fieldglass'
+  manager: 'Bee Wilkins'
+  order_status:
+    value: '1'
+    name: 'Inquiry'
+london:
+  job_title: 'Gather Test Posting'
+  job_location_posting: 'London'
+  job_description: 'Test Automation Job Description Info'
+  placement_type:
+    value: '2' #Permanent
+    name: 'Permanent'
+  job_location:
+    value: '34'
+    name: 'London London'
+  market:
+    value: '29'
+    name: 'London'
+  client:
+    partial_name: 'Marvel Cartoon' #id: 189766
+    complete_name: 'Marvel Cartoon (TEST)'
+    division: 'Aquent Corporate'
+  contact:
+    id: '2252335'
+    name: 'Wonder Woman'
+    phone_number: '565-787-9091'
+    email: 'kcroscup@gmail.com'
+    address_street: '149 West 5th Ave'
+    address_floor: '2nd Floor'
+    address_state: 'New York, NY 10011'
+    address_country: 'USA'
+  financial:
+    msp_name: 'Fieldglass'
+    vms_name: 'Fieldglass'
+  manager: 'Bee Wilkins'
+  order_status:
+    value: '1'
+    name: 'Inquiry'
+
+london_order:
+  market:
+    value: '29'
+    name: 'London'
+  client:
+    partial_name: 'Interbrand' #id: 200000444
+    complete_name: 'Interbrand'
+    division: 'Vitamin T'
+  contact:
+    id: '200267048'
+    name: "Abbie Joseph"
+    phone_number: '020 7025 8010'
+    email: 'accounts@payable.com'
+    address_street: '18 Soho Square'
+    address_floor: ''
+    address_state: 'London, W1D 3QL'
+    address_country: 'UK'
+  start_date: Monday
+  end_date_days: 21 # Days after start date
+  manager: 'London Aquent'
+  order_status:
+    value: '2'
+  financial_info:
+    exclusive: '1' #Yes
+    direct: '1' #Yes
+off_site_preference:
+  value: '2'
+  name: 'Off-site'
+reason_created:
+  value: '1'
+  name: 'Net new position'
+how_heard:
+  value: '1033' #VMS/ATS Initiated Business
+  name: 'VMS/ATS Initiated Business'
+order_credit:
+  name: 'Account, VT Test'
+  id: '1782555'
+  percentage: '100%'
+
+london_order_sql:
+  market_id: 29
+  client_id: 200000444
+  client_contact: 200267048
+  start_date: now()
+  end_date: now() + interval '21 days'
+  order_status: 2
+  exclusive: 1
+  direct: 1
+  off_site_preference: 2
+  reason_created: 1
+  how_heard: 1033
+  add_order_credit_agent_id: 1782555
+  add_order_credit_percentage: 100
+
+agent:
+  name: 'Automation, Test'
+  id: 1773265
+gatherable_talent:
+  - 2785830 # Sophia Dai
+  - 607568 # Peninna Jeruzalmi
+  - 131746 # Joseph Kilrain
+email_body: 'Gather Email Talent Response Test: '
+eeoc_talent:
+  id: 2183204
+  email: 'foot01@gmail.com '
+
+find_gather_response_sql: "SELECT gr.gather_response_source_id, gr.gather_response_type_id
+                            FROM gather_response gr
+                            JOIN gather g USING (gather_id)
+                            WHERE g.order_id = %d
+                            AND g.talent_person_id = %d
+                            ORDER BY gr.create_date DESC
+                            LIMIT 1"
+custom_question_answer: 'Custom Question Answer '
+auth_work_us: 'Are you authorized to work in the US?'
+require_sponsorship: 'Do you require a work visa sponsorship now or in the future?'
+minor_segment:
+  value: '102'
+  name: 'Software Quality Assurance Analyst or Tester'

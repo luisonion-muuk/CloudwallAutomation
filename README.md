@@ -1,0 +1,244 @@
+# CloudWall Automation
+
+End-to-end test suite for the CloudWall staffing platform, built with [Playwright](https://playwright.dev/) and JavaScript.
+
+Covers order management, talent gather workflows, and login flows against CloudWall's multi-iframe legacy UI.
+
+---
+
+## Prerequisites
+
+- **Node.js** 18 or later
+- **SSH key** (`~/.ssh/id_ed25519`) authorized for the CloudWall database jump host — required by tests that create orders or talent via stored procedures
+- **VPN access** to the CloudWall test environment (the `cw-pwright.aquent.io` host must be reachable)
+- **Mailinator API token** — used by gather email verification tests (stored in your `.env`)
+
+---
+
+## Setup
+
+### 1. Clone the repository
+
+```bash
+git clone <repo-url> CloudwallAutomation
+cd CloudwallAutomation
+```
+
+### 2. Install dependencies
+
+```bash
+npm install
+```
+
+### 3. Install Playwright browsers
+
+```bash
+npx playwright install
+```
+
+This downloads Chromium, Firefox, and WebKit. If you only need Chrome:
+
+```bash
+npx playwright install chromium
+```
+
+### 4. Configure environment variables
+
+Copy the example file and fill in your credentials:
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` and set at minimum:
+
+| Variable | Purpose |
+|---|---|
+| `AGENT_PASSWORD` | CloudWall agent account password |
+| `MAILINATOR_API_TOKEN` | API token for gather email verification |
+| `SERVER_HOST` | CloudWall host (default: `cw-pwright.aquent.io`) |
+
+The full list of variables is documented in `.env.example`. The test suite reads credentials from both `.env` (if [dotenv](https://www.npmjs.com/package/dotenv) is enabled in `playwright.config.js`) and `configs/test_data.json`. Values in `test_data.json` use `${ENV_VAR}` placeholders — they are resolved at runtime by `utils/spec_helper.js`.
+
+### 5. Verify database connectivity (optional)
+
+Tests that create orders via the DB need an SSH tunnel to the PostgreSQL database. The tunnel is managed automatically by `utils/db_util.js`, but you can verify your SSH key works:
+
+```bash
+ssh -i ~/.ssh/id_ed25519 pwright-user@<ssh-host> -N -L 5432:cw-pwright-db.corp.aquent.io:5432
+```
+
+If this connects without errors, the test suite will be able to tunnel automatically.
+
+---
+
+## Running Tests
+
+### Run all tests
+
+```bash
+npx playwright test
+```
+
+### Run a specific spec file
+
+```bash
+npx playwright test tests/cloudwall/login.spec.js
+```
+
+### Run tests by keyword in the test name
+
+```bash
+npx playwright test -g "custom gather"
+```
+
+### Run tests by tag
+
+```bash
+npx playwright test --grep "@BIZ-21978"
+```
+
+### Run in headed mode (see the browser)
+
+```bash
+npx playwright test --headed
+```
+
+### Run only in Chromium
+
+```bash
+npx playwright test --project=chromium
+```
+
+### View the HTML report after a run
+
+```bash
+npx playwright show-report
+```
+
+---
+
+## Project Structure
+
+```
+CloudwallAutomation/
+├── configs/
+│   ├── env_rcbot.json              # Environment-specific server hosts and URLs
+│   └── test_data.json              # Credential placeholders (resolved from env vars)
+│
+├── data/
+│   ├── cloudwall/                  # Shared entity data (market codes, tax codes)
+│   ├── files/                      # Test fixtures (resume PDF)
+│   ├── loginData.json              # Login test data (extra users)
+│   └── yaml/                       # Per-spec test data
+│       ├── cloudwall/order/        # Order gather spec data
+│       ├── cloudwall/talent/       # Talent gather spec data
+│       └── utils/                  # Order/SQL utility data
+│
+├── pages/                          # Page Object Model classes
+│   ├── elements/                   # Reusable UI element classes
+│   │   ├── bootstrap2_modal.js     # Base class for Bootstrap 2 modals
+│   │   └── select2_element.js      # Select2 dropdown helper
+│   └── cloudwall/
+│       ├── frameset.js             # Main CloudWall frameset (post-login container)
+│       ├── legacy_action_screen.js # Base class for legacy action screens
+│       ├── listScreen.js           # Base class for list/grid views
+│       ├── action_screen.js        # Base class for action screens
+│       ├── search_page.js          # Base class for search pages
+│       ├── arealist/               # Area list base classes
+│       ├── order/                  # Order page objects (28 files)
+│       │   ├── manage_candidates.page.js
+│       │   ├── order_edit_detail.page.js
+│       │   ├── gather_candidates_modal.page.js
+│       │   ├── posting_edit.page.js
+│       │   └── ...
+│       └── talent/                 # Talent page objects
+│           ├── talent_edit_detail.page.js
+│           └── talent_view_detail.page.js
+│
+├── tests/                          # Test specs
+│   └── cloudwall/
+│       ├── login.spec.js           # Login and session tests
+│       ├── order/
+│       │   ├── order_custom_gather_01.spec.js  # Gather email send + verify
+│       │   ├── order_custom_gather_02.spec.js  # Gather status + ineligible talent
+│       │   └── order_gather_email_talent_responses.spec.js  # Gather link responses
+│       └── talent/
+│           └── talent_gather.spec.js  # Talent gather response + MOATS tests
+│
+├── utils/                          # Shared utilities
+│   ├── modules/
+│   │   └── cloudwall.js            # Login, session management, frame mappings
+│   ├── cloudwall/
+│   │   ├── cloudwall_helpers.js    # Frame-aware helpers (click, search, gather, etc.)
+│   │   ├── order_util.js           # Order creation via DB stored procedures
+│   │   ├── order_sql_util.js       # Order-related SQL queries
+│   │   ├── talent_util.js          # Talent creation utilities
+│   │   ├── talent_sql_util.js      # Talent-related SQL queries
+│   │   └── job_posting_util.js     # Job posting utilities
+│   ├── spec_helper.js              # YAML data loading, config builder, test fixtures
+│   ├── db_util.js                  # PostgreSQL connection with automatic SSH tunneling
+│   ├── email_util.js               # IMAP email search and parsing
+│   ├── post_api_util.js            # HTTP API helpers
+│   ├── util.js                     # General utilities (YAML, date formatting)
+│   └── make_resume_json.js         # Resume JSON builder for talent creation
+│
+├── playwright.config.js            # Playwright configuration
+├── package.json
+├── .env.example                    # Environment variable template
+└── .gitignore
+```
+
+---
+
+## Test Suites
+
+### Login (`login.spec.js`)
+
+Verifies CloudWall login, session persistence across page refresh, and multi-user login. This is the only spec currently using page objects directly — it serves as the reference pattern for refactoring the other specs.
+
+### Order Custom Gather 01 (`order_custom_gather_01.spec.js`)
+
+Creates an order via DB, adds gatherable talent as candidates, sends custom gather emails, and verifies delivery via Mailinator API. Also tests gather activity history on both the order and talent detail screens.
+
+### Order Custom Gather 02 (`order_custom_gather_02.spec.js`)
+
+Tests candidate status changes after gather send, modal behavior for ineligible talent, gather re-send restrictions, and pre-interview question flows.
+
+### Order Gather Email Talent Responses (`order_gather_email_talent_responses.spec.js`)
+
+End-to-end gather response flow: sends gather email, extracts response links from Mailinator, navigates "Apply" and "Not a Fit" links, and verifies candidate status updates in CloudWall.
+
+### Talent Gather (`talent_gather.spec.js`)
+
+Tests talent gather response rates, MOATS (availability) updates after gather responses, gather pause/resume based on check-in dates, and gather eligibility rules.
+
+---
+
+## Key Concepts
+
+### CloudWall's iframe architecture
+
+CloudWall renders most content inside nested iframes (`topFrame`, `mainFrame`, result frames, etc.). The helpers in `cloudwall_helpers.js` handle this transparently — functions like `findInFrames`, `clickAsaba`, and `waitForInFrames` search across all frames automatically.
+
+### ASABA actions
+
+CloudWall navigation uses "ASABA" links — anchor tags with action names like `AWUIDrawManageCandidates` or `AWUIDrawTalentEditPlacementInfo`. The `clickAsaba(page, actionName)` helper finds and clicks these across all frames.
+
+### Order creation
+
+Orders are created either via the CloudWall UI (`createOrderSimple` in helpers) or via a database stored procedure (`createNewNyMarvelCartoonTestOrderWithoutPostingFromDb` in `order_util.js`). The DB path is faster and more reliable, but requires SSH tunnel access.
+
+### Email verification
+
+Gather email delivery is verified through the Mailinator API. The `verifyEmailsViaMailinator` helper in `cloudwall_helpers.js` polls the inbox until the expected email arrives, then returns the full body for assertion.
+
+---
+
+## Known Limitations
+
+- The `MAILINATOR_API_TOKEN` is still hardcoded in 3 spec files — should be moved to `.env` and read from config.
+- Several helper functions are duplicated between spec files instead of using `cloudwall_helpers.js` (e.g. `dismissCookieBanner`, `formatDateMonthsFromNow`, `respondToEmail`).
+- The order and talent gather specs use hardcoded locators instead of the existing page objects in `pages/cloudwall/order/`. Wiring up `ManageCandidates`, `OrderEditDetail`, and the new talent pages is the next refactoring step.
+- The `playwright.config.js` uses ESM `import` syntax but `package.json` sets `"type": "commonjs"` — this works because Playwright transpiles the config file, but all other files use `require()`.
+- Some tests have `test.skip()` blocks for flows that need infrastructure not yet available (EEOC form, DB-based talent verification).

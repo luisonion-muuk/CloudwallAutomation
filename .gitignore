@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Playwright outputs
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+
+# Environment & secrets
+.env
+.env.*
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Temp / working files
+tmp/
