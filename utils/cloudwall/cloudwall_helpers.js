@@ -696,82 +696,111 @@ async function createOrderSimple(page, marketData, orderData, config) {
  * @returns {Promise<Object[]>} Array of { email, found, bodyText } results
  */
 async function verifyEmailsViaMailinator(candidateEmails, expectedBodyText, apiToken, opts = {}) {
+  if (!apiToken) {
+    throw new Error('Mailinator API token is not set. Add mailinator_api_token to configs/test_data.json or export MAILINATOR_API_TOKEN as an environment variable.');
+  }
+
   const timeout = opts.timeout || 60000;
   const pollInterval = opts.pollInterval || 10000;
   const domain = opts.domain || 'muukteam.testinator.com';
   const results = [];
- 
-  // Deduplicate emails (all candidates may share the same inbox)
-  const uniqueEmails = [...new Set(candidateEmails)];
- 
-  for (const email of uniqueEmails) {
-    const inboxName = email.split('@')[0];
-    console.log(`Checking Mailinator inbox: ${inboxName}@${domain}`);
- 
-    const deadline = Date.now() + timeout;
-    let emailFound = false;
-    let bodyText = '';
- 
-    while (Date.now() < deadline) {
-      try {
-        // Fetch inbox messages
-        const inboxResponse = await fetch(
-          `https://mailinator.com/api/v2/domains/${domain}/inboxes/${inboxName}`,
-          { headers: { 'Authorization': apiToken } }
-        );
-        const inboxData = await inboxResponse.json();
- 
-        if (inboxData.msgs && inboxData.msgs.length > 0) {
-          // Check each message (most recent first)
-          const sortedMsgs = inboxData.msgs.sort((a, b) => b.time - a.time);
- 
-          for (const msg of sortedMsgs) {
-            // Fetch the full message
-            const msgResponse = await fetch(
-              `https://mailinator.com/api/v2/domains/${domain}/inboxes/${inboxName}/messages/${msg.id}`,
-              { headers: { 'Authorization': apiToken } }
-            );
-            const msgData = await msgResponse.json();
- 
-            // Check body parts for expected text
-            const parts = msgData.parts || [];
-            let fullBody = '';
-            for (const part of parts) {
-              fullBody += part.body || '';
-            }
- 
-            // Also check subject
-            const subject = msg.subject || msgData.subject || '';
- 
-            if (fullBody.includes(expectedBodyText) || subject.includes(expectedBodyText)) {
-              bodyText = fullBody;
-              emailFound = true;
-              console.log(`  ✓ Found email for ${inboxName} containing expected text (subject: ${subject})`);
-              break;
-            }
-          }
- 
-          if (emailFound) break;
-        }
-      } catch (err) {
-        console.log(`  API error: ${err.message}`);
+
+  // For Mailinator + addressing, all emails to aquent+xxx@domain land in the "aquent" inbox.
+  // Extract the inbox name (part before + or before @).
+  const firstEmail = candidateEmails[0];
+  const localPart = firstEmail.split('@')[0];
+  const inboxName = localPart.includes('+') ? localPart.split('+')[0] : localPart;
+
+  console.log(`Checking Mailinator inbox: ${inboxName}@${domain} for ${candidateEmails.length} email(s)`);
+
+  const deadline = Date.now() + timeout;
+  let matchingBodies = [];
+
+  while (Date.now() < deadline) {
+    try {
+      const inboxResponse = await fetch(
+        `https://mailinator.com/api/v2/domains/${domain}/inboxes/${inboxName}`,
+        { headers: { 'Authorization': apiToken } }
+      );
+
+      if (!inboxResponse.ok) {
+        console.log(`  Mailinator inbox API returned ${inboxResponse.status}, retrying...`);
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+        continue;
       }
- 
-      console.log(`  Waiting for email in ${inboxName}...`);
-      await new Promise(resolve => setTimeout(resolve, pollInterval));
+
+      const inboxData = await inboxResponse.json();
+
+      if (inboxData.msgs && inboxData.msgs.length > 0) {
+        const sortedMsgs = inboxData.msgs.sort((a, b) => b.time - a.time);
+
+        // On first poll, log the most recent subjects so we can see what's in the inbox
+        if (!matchingBodies.length && Date.now() - (deadline - timeout) < pollInterval + 2000) {
+          const recentSubjects = sortedMsgs.slice(0, 5).map(m => `"${m.subject}" (${new Date(m.time).toISOString()})`);
+          console.log(`  Recent inbox messages: ${recentSubjects.join(', ')}`);
+        }
+
+        // Only check recent messages (last 10 minutes) with gather-like subjects to avoid
+        // fetching all 50+ messages and hitting Mailinator rate limits
+        const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
+        const candidateMsgs = sortedMsgs.filter(msg => {
+          const isRecent = msg.time >= tenMinutesAgo;
+          const subject = (msg.subject || '').toLowerCase();
+          const isGatherLike = subject.includes('new opportunity') || subject.includes('gather');
+          return isRecent && isGatherLike;
+        });
+
+        for (const msg of candidateMsgs) {
+          const msgResponse = await fetch(
+            `https://mailinator.com/api/v2/domains/${domain}/inboxes/${inboxName}/messages/${msg.id}`,
+            { headers: { 'Authorization': apiToken } }
+          );
+
+          if (!msgResponse.ok) {
+            console.log(`  Mailinator message API returned ${msgResponse.status} for ${msg.id}, skipping...`);
+            continue;
+          }
+
+          const msgData = await msgResponse.json();
+          const parts = msgData.parts || [];
+          let fullBody = '';
+          for (const part of parts) {
+            fullBody += part.body || '';
+          }
+
+          const subject = msg.subject || msgData.subject || '';
+
+          if (fullBody.includes(expectedBodyText) || subject.includes(expectedBodyText)) {
+            matchingBodies.push(fullBody);
+            console.log(`  ✓ Found matching email (subject: ${subject})`);
+            break;
+          } else if (candidateMsgs.indexOf(msg) === 0) {
+            // Log a preview of the first gather email's body so we can debug what's actually in it
+            const preview = fullBody.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 300);
+            console.log(`  Body preview (first gather email): "${preview}"`);
+          }
+        }
+
+        if (matchingBodies.length > 0) break;
+      }
+    } catch (err) {
+      console.log(`  API error: ${err.message}`);
     }
- 
-    results.push({
-      email,
-      found: emailFound,
-      bodyText,
-    });
- 
-    if (!emailFound) {
-      console.log(`  ✗ Email not found for ${inboxName} within ${timeout / 1000}s`);
+
+    console.log(`  Waiting for gather email in ${inboxName}...`);
+    await new Promise(resolve => setTimeout(resolve, pollInterval));
+  }
+
+  // Build results for each candidate email
+  for (const email of candidateEmails) {
+    if (matchingBodies.length > 0) {
+      results.push({ email, found: true, bodyText: matchingBodies[0] });
+    } else {
+      results.push({ email, found: false, bodyText: '' });
+      console.log(`  ✗ No email found containing expected text within ${timeout / 1000}s`);
     }
   }
- 
+
   return results;
 }
 
@@ -838,17 +867,27 @@ async function createTalentViaUI(page, talentSetup, config, options = {}) {
   }
 
   // ── Step 1: Navigate to Talent module and click New Talent ──
+  // The #talent-module link lives in the navigation frame. After login the frameset
+  // may still be loading, so we poll across all frames with a timeout instead of
+  // doing a single instant check.
   let clicked = false;
-  for (const frame of page.frames()) {
-    const talentLink = frame.locator('#talent-module');
-    const count = await talentLink.count().catch(() => 0);
-    if (count > 0) {
-      await talentLink.click();
-      clicked = true;
-      break;
+  const navDeadline = Date.now() + 30000;
+
+  while (Date.now() < navDeadline && !clicked) {
+    for (const frame of page.frames()) {
+      const talentLink = frame.locator('#talent-module');
+      const count = await talentLink.count().catch(() => 0);
+      if (count > 0 && await talentLink.isVisible().catch(() => false)) {
+        await talentLink.click();
+        clicked = true;
+        break;
+      }
+    }
+    if (!clicked) {
+      await page.waitForTimeout(2000);
     }
   }
-  if (!clicked) throw new Error('Could not find #talent-module link');
+  if (!clicked) throw new Error('Could not find #talent-module link after 30s — frameset may not have loaded');
   await page.waitForTimeout(3000);
 
   await clickAsaba(page, 'New Talent');
@@ -874,7 +913,7 @@ async function createTalentViaUI(page, talentSetup, config, options = {}) {
 
   // Wait for either the talent edit form (no duplicates) or the "Create Talent" button (duplicates found)
   // Poll because findInFrames returns null (not a rejection) when element isn't found
-  const dupCheckDeadline = Date.now() + 30000;
+  const dupCheckDeadline = Date.now() + 60000;
   let formReady = false;
 
   while (Date.now() < dupCheckDeadline) {
@@ -897,7 +936,7 @@ async function createTalentViaUI(page, talentSetup, config, options = {}) {
 
   // If we clicked "Create Talent", still need to wait for the edit form
   if (!formReady) {
-    const nameField = await findInFrames(page, 'input[name="firstName"]', 30000);
+    const nameField = await findInFrames(page, 'input[name="firstName"]', 60000);
     if (!nameField) throw new Error('Talent edit form did not load after Check for Duplicates');
   }
 

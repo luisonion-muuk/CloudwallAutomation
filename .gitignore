@@ -8,10 +8,6 @@ node_modules/
 /playwright/.cache/
 /playwright/.auth/
 
-# Environment & secrets
-.env
-.env.*
-
 # OS artifacts
 .DS_Store
 Thumbs.db

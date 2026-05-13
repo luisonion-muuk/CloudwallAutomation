@@ -311,18 +311,37 @@ async function respondToEmail(page, action, talent, jobTitle, startTime) {
         `https://mailinator.com/api/v2/domains/${domain}/inboxes/${inboxName}`,
         { headers: { 'Authorization': MAILINATOR_API_TOKEN } }
       );
+
+      if (!inboxResponse.ok) {
+        console.log(`Mailinator inbox API returned ${inboxResponse.status}, retrying...`);
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+        continue;
+      }
+
       const inboxData = await inboxResponse.json();
 
       if (inboxData.msgs && inboxData.msgs.length > 0) {
-        // Sort by most recent first
-        const sortedMsgs = inboxData.msgs.sort((a, b) => b.time - a.time);
+        // Sort by most recent first, filter to messages after startTime to skip stale emails
+        const relevantMsgs = inboxData.msgs
+          .filter(msg => !startTime || msg.time >= startTime)
+          .sort((a, b) => b.time - a.time);
 
-        for (const msg of sortedMsgs) {
+        for (const msg of relevantMsgs) {
+          // Quick subject check before making another API call
+          const subjectMatch = (msg.subject || '').toLowerCase().includes('gather');
+          if (!subjectMatch) continue;
+
           // Fetch full message
           const msgResponse = await fetch(
             `https://mailinator.com/api/v2/domains/${domain}/inboxes/${inboxName}/messages/${msg.id}`,
             { headers: { 'Authorization': MAILINATOR_API_TOKEN } }
           );
+
+          if (!msgResponse.ok) {
+            console.log(`Mailinator message API returned ${msgResponse.status} for ${msg.id}, skipping...`);
+            continue;
+          }
+
           const msgData = await msgResponse.json();
 
           // Build full body from all parts
@@ -336,9 +355,8 @@ async function respondToEmail(page, action, talent, jobTitle, startTime) {
           // The talent email might be URL-encoded in the body (+ becomes %2B), so match the unique part
           const emailUniqueId = talent.email.split('@')[0].split('+')[1] || talent.email; // e.g. "beckett148436"
           const isForOurTalent = fullBody.includes(emailUniqueId);
-          const subjectMatch = (msg.subject || '').toLowerCase().includes('gather');
 
-          if (subjectMatch && isForOurTalent) {
+          if (isForOurTalent) {
             // Use cheerio to find the link by text (case-insensitive)
             const $ = cheerio.load(fullBody);
             const foundLink = /** @type {string|undefined} */ ($('a')
