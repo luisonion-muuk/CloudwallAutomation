@@ -173,7 +173,7 @@ async function createDbConnection() {
     port,
     database: 'aquent_cdb',
     user: 'testautomation',
-    password: process.env.DB_PASSWORD || 'ECMB7pMZAaRYGvXTZXoh',
+    password: process.env.DB_PASSWORD || '',
     ssl,
   });
 

@@ -14,9 +14,6 @@
 const { test, expect } = require('@playwright/test');
 const { loadSpecData } = require('../../../utils/spec_helper');
 const { createNewNyMarvelCartoonTestOrderWithoutPostingFromDb } = require('../../../utils/cloudwall/order_util');
-const { searchForEmails, xOriginalToString } = require('../../../utils/email_util');
-// TODO: Restore when createTalent is working with page object context or API
-// const { createTalent } = require('../../../utils/cloudwall/talent_util');
 const { visitAndLogin, clearSessionCache } = require('../../../utils/modules/cloudwall');
 const {
   findInFrames,
@@ -35,7 +32,7 @@ const {
   selectDefaultGatherTemplate,
   sendGatherEmail,
   createPostingSimple,
-  createOrderSimple,
+  createTalentViaUI,
   verifyEmailsViaMailinator,
 } = require('../../../utils/cloudwall/cloudwall_helpers');
 
@@ -165,7 +162,7 @@ async function findGatherLinkViaMailinator(page, action, candidateEmails, search
     candidateEmails,
     searchText,
     MAILINATOR_API_TOKEN,
-    { timeout: options.timeout || 60000, pollInterval: options.pollInterval || 10000 }
+    { timeout: options.timeout || 120000, pollInterval: options.pollInterval || 10000 }
   );
 
   // Find the first email result that was found
@@ -279,29 +276,24 @@ async function queryDatabase(sql) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 test.describe('CloudWall - Order Module - Gather Email Talent Responses', () => {
-  // Serial mode: the same gatherable talents are used across tests, and once gathered
-  // they become ineligible for subsequent gathers. Running serially ensures tests
-  // execute in order and remaining tests are skipped if one fails.
-  // Note: retries are not supported with serial mode in Playwright.
-  test.describe.configure({ mode: 'serial' });
-  test.setTimeout(240000); // 4 min to accommodate order creation + Mailinator polling
+  test.setTimeout(600000); // 10 min to accommodate talent creation + order + Mailinator polling
   let data;
-  let orderUtilData;
   let testTimestamp;
   let orderId;
   let candidateNames;
   let candidateEmails;
+  let createdTalents;
   let emailBody; // base email body text for gather emails
+
+  // Number of talents to create (replaces old hardcoded gatherable_talent list)
+  const NUM_GATHER_TALENTS = 1;
 
   test.beforeEach(async ({ page, context }) => {
     clearSessionCache();
 
     data = loadSpecData('data/yaml/cloudwall/order/order_gather_email_talent_responses_spec.yaml');
-    orderUtilData = loadSpecData('data/yaml/utils/order_util.yaml');
     testTimestamp = generateTimestamp();
 
-    // email_body is not in this YAML (it's in order_custom_gather_master_spec.yaml).
-    // Use a default gather email body for these response tests.
     emailBody = data.email_body || 'Gather email talent response test ';
 
     if (!checkHostName()) {
@@ -312,44 +304,51 @@ test.describe('CloudWall - Order Module - Gather Email Talent Responses', () => 
 
     await visitAndLogin(page, config);
 
-    // Create a new order via the UI (matching the pattern from order_custom_gather_01)
-    orderId = await createOrderSimple(page, orderUtilData.new_york, orderUtilData, config);
+    // ── Create fresh talents via UI ──
+    createdTalents = [];
+    for (let i = 0; i < NUM_GATHER_TALENTS; i++) {
+      const talent = await createTalentViaUI(page, data.talent_to_setup, config);
+      console.log(`Created talent ${i + 1}/${NUM_GATHER_TALENTS}: ${talent.id} (${talent.firstName} ${talent.lastName}) — ${talent.email}`);
+      createdTalents.push(talent);
+    }
 
-    // Navigate to the order and open Manage Candidates
+    candidateNames = createdTalents.map(t => `${t.firstName} ${t.lastName}`);
+    candidateEmails = createdTalents.map(t => t.email);
+
+    // ── Create order via DB ──
+    const context2 = { config };
+    orderId = await createNewNyMarvelCartoonTestOrderWithoutPostingFromDb(null, context2);
+    console.log(`Order created via DB: ${orderId}`);
+
+    // ── Navigate to Manage Candidates and add all talents as candidates ──
     await page.goto(`https://${config.webHost}/webwall/open/entity/${orderId}?entityType=4&marketId=11`);
+    await page.waitForLoadState('networkidle');
     await page.waitForTimeout(5000);
 
     await clickAsaba(page, 'Manage Candidates');
     await page.waitForTimeout(3000);
 
-    candidateNames = [];
-    candidateEmails = [];
+    for (const talent of createdTalents) {
+      await runQuickSearch(page, talent.id);
 
-    // Use known-gatherable talent IDs (same as order_custom_gather_01).
-    // These talents have email opt-in, SMS preference, and global subscription enabled,
-    // which is required for CloudWall to show the Gather compose form instead of a
-    // regular Message compose form.
-    // TODO: When createTalent is available, create a fresh talent from data.talent_to_setup instead.
-    const gatherableTalent = data.gatherable_talent || [2785830, 607568, 131746];
+      // Retry search — newly created talents may need time to appear in the search index
+      let searchResult = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        searchResult = await waitForInFrames(page, `tr:has-text("${talent.id}")`, 10000).catch(() => null);
+        if (searchResult) break;
+        console.log(`Talent ${talent.id} not found in search (attempt ${attempt}/3), retrying...`);
+        await page.waitForTimeout(5000);
+        await runQuickSearch(page, talent.id);
+      }
+      if (!searchResult) throw new Error(`Could not find talent ${talent.id} in Manage Candidates search after 3 attempts`);
 
-    for (const personId of gatherableTalent) {
-      await runQuickSearch(page, personId);
-      await selectRow(page, personId);
-      const rowContents = await getContentForRow(page, personId);
-      candidateNames.push(`${rowContents.firstName} ${rowContents.lastName}`);
-      candidateEmails.push(rowContents.email);
-
+      await searchResult.locator.first().click();
       await clickAsaba(page, 'Make Candidate');
       await selectCandidateStatusType(page, 'talent_applied_online');
       await clickNextButton(page);
       await clickAsaba(page, 'Save');
       await page.waitForTimeout(2000);
     }
-
-    // Set known candidate emails for Mailinator verification
-    candidateEmails = [
-      'aquent@muukteam.testinator.com',
-    ];
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -384,7 +383,7 @@ test.describe('CloudWall - Order Module - Gather Email Talent Responses', () => 
         page,
         'Not a Fit',
         candidateEmails,
-        data.new_york.job_title
+        data.new_york.job_description
       );
 
       // Verify the "Not Interested" response page loaded
@@ -428,7 +427,7 @@ test.describe('CloudWall - Order Module - Gather Email Talent Responses', () => 
         page,
         'Not a Fit',
         candidateEmails,
-        data.new_york.job_title
+        data.new_york.job_description
       );
 
       // Wait for the "Not Interested" form to load and dismiss cookie banner
@@ -500,7 +499,7 @@ test.describe('CloudWall - Order Module - Gather Email Talent Responses', () => 
         page,
         'Not a Fit',
         candidateEmails,
-        data.new_york.job_title
+        data.new_york.job_description
       );
 
       // Wait for the "Not Interested" form to load and dismiss cookie banner
@@ -573,7 +572,7 @@ test.describe('CloudWall - Order Module - Gather Email Talent Responses', () => 
         page,
         'Apply',
         candidateEmails,
-        data.new_york.job_title
+        data.new_york.job_description
       );
       // The "Interested" link navigates to the Aquent Skill portal.
       // It shows: Personal Info page or "Choose all that apply" modal → multi-step wizard
@@ -620,7 +619,7 @@ test.describe('CloudWall - Order Module - Gather Email Talent Responses', () => 
         page,
         'Apply',
         candidateEmails,
-        data.new_york.job_title
+        data.new_york.job_description
       );
 
       await page.waitForTimeout(3000);
@@ -704,7 +703,7 @@ test.describe('CloudWall - Order Module - Gather Email Talent Responses', () => 
         page,
         'Apply',
         candidateEmails,
-        data.new_york.job_title
+        data.new_york.job_description
       );
 
       await page.waitForTimeout(3000);
@@ -763,9 +762,9 @@ test.describe('CloudWall - Order Module - Gather Email Talent Responses', () => 
       // Verify emails were received via Mailinator API (same pattern as order_custom_gather_01)
       const emailResults = await verifyEmailsViaMailinator(
         candidateEmails,
-        data.new_york.job_title,
+        data.new_york.job_description,
         MAILINATOR_API_TOKEN,
-        { timeout: 60000, pollInterval: 10000 }
+        { timeout: 120000, pollInterval: 10000 }
       );
 
       for (const result of emailResults) {

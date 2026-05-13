@@ -37,7 +37,8 @@
     "cia_username": "ajestadt@aquent.com",
     "cia_admin_username": "cloudwallsupport+1234@aquent.com",
     "cia_password": "Vo6&t9c6LQ77BgFA",
-    "auth_login_password": "34G!bG57LnlRLclx"
+    "auth_login_password": "34G!bG57LnlRLclx",
+    "mailinator_api_token": "44315acbe70d47e79e36d5b73fbe1748"
   },
   "environments": {
     "rcbot": {

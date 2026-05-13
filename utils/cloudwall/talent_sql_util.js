@@ -183,10 +183,46 @@ async function getPtoPolicyTiers(db = null) {
   }
 }
 
+/**
+ * Sets all required DB flags so a talent is eligible for gather emails.
+ *
+ * A talent is gatherable when ALL of these are true:
+ *   - email_subscription.optin_global = true
+ *   - sms_preference.sms_preference = true
+ *   - talent_subscription.global_subscribed = 1
+ *   - employee_status_id NOT IN (40, 43)
+ *
+ * This function upserts email_subscription, sms_preference, and talent_subscription.
+ * The employee_status is handled by setTalentAsRTW (status 20).
+ *
+ * @param {string|number} talentId - The talent/person ID
+ * @param {string} email - The talent's email address
+ */
+async function makeTalentGatherable(talentId, email) {
+  const sql = `
+    -- Email subscription: opt in globally
+    INSERT INTO email_subscription (email, optin_global, create_date, mod_date)
+    VALUES (normalize_email('${email}'), true, now(), now())
+    ON CONFLICT (email) DO UPDATE SET optin_global = true, mod_date = now();
+
+    -- SMS preference: opt in
+    INSERT INTO sms_preference (person_id, sms_preference, sms_opt_in_reason_id, create_date, mod_date)
+    VALUES (${talentId}, true, 2, now(), now())
+    ON CONFLICT (person_id) DO UPDATE SET sms_preference = true, sms_opt_in_reason_id = 2, mod_date = now();
+
+    -- Talent subscription: globally subscribed
+    INSERT INTO talent_subscription (person_id, global_subscribed, create_date, mod_date)
+    VALUES (${talentId}, 1, now(), now())
+    ON CONFLICT (person_id) DO UPDATE SET global_subscribed = 1, mod_date = now();
+  `;
+  await queryDatabase(sql);
+}
+
 module.exports = {
   setBenefitsClassAndPayrollDivision,
   setTalentAsRTW,
   setTalentOpportunity,
+  makeTalentGatherable,
   getWeekNumber,
   getTotalWeeks,
   getPtoPolicyTiers,
