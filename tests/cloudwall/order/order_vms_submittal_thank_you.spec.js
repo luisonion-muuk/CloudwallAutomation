@@ -14,14 +14,15 @@ const {
   runQuickSearch,
   selectCandidateStatusType,
   clickNextButton,
+  selectAll,
   sendGatherEmail,
   createPostingSimple,
   createTalentViaUI,
   verifyEmailsViaMailinator,
 } = require('../../../utils/cloudwall/cloudwall_helpers');
 
-const envConfig  = require('../../../configs/env_rcbot.json');
-const testData   = require('../../../configs/test_data.json');
+const envConfig = require('../../../configs/env_rcbot.json');
+const testData  = require('../../../configs/test_data.json');
 const config = {
   webHost:       envConfig.server_host,
   agentUserName: testData.credentials.agent_username,
@@ -31,7 +32,7 @@ const config = {
 
 const MAILINATOR_API_TOKEN = process.env.MAILINATOR_API_TOKEN;
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /** Dismiss OneTrust cookie banner if present. */
 async function dismissCookieBanner(page) {
@@ -42,174 +43,156 @@ async function dismissCookieBanner(page) {
   }
 }
 
-/** Create a talent via UI and return { id, email, firstName, lastName }. */
-async function createAndViewTalent(page, talentSetup) {
-  const talent = await createTalentViaUI(page, talentSetup, config);
-  console.log(`Talent created → ID: ${talent.id} | Email: ${talent.email}`);
-  return talent;
-}
-
-/** Create a DB order, add a posting, and return the orderId. */
-async function createOrderWithPosting(page, postingData, timestamp) {
-  const orderId = await createNewNyMarvelCartoonTestOrderWithoutPostingFromDb(null, { config });
-  if (!orderId) throw new Error('Order creation returned null');
-
-  await page.goto(`https://${config.webHost}/webwall/open/entity/${orderId}?entityType=4&marketId=11`);
-  await page.waitForLoadState('networkidle');
-  await page.waitForTimeout(5000);
-
-  await clickAsaba(page, 'New Posting');
-  await createPostingSimple(page, postingData);
-
-  // Edit posting title to include timestamp for later email search
-  const viewBtn = await findInFrames(page, 'div.ButtonNormal:has-text("View Posting Detail")', 3000);
-  if (viewBtn) { await viewBtn.locator.first().click(); await page.waitForTimeout(2000); }
-
-  const editBtn = await findInFrames(page, 'div.ButtonNormal:has-text("Edit Posting")', 3000);
-  if (editBtn) {
-    await editBtn.locator.first().click();
-    await page.waitForTimeout(2000);
-    const titleInput = await findInFrames(page, 'input[name="localizedDescription[0].jobTitle"]');
-    if (titleInput) {
-      await titleInput.locator.clear();
-      await titleInput.locator.fill(postingData.job_title + ' ' + timestamp);
-    }
-    await clickAsaba(page, 'Save');
-    await page.waitForTimeout(2000);
-  }
-
-  console.log(`Order created → ID: ${orderId}`);
-  return orderId;
-}
-
-/** Add talent to the order as a candidate. */
-async function addTalentAsCandidate(page, orderId, talentId) {
-  await page.goto(`https://${config.webHost}/webwall/open/entity/${orderId}?entityType=4&marketId=11`);
-  await page.waitForLoadState('networkidle');
-  await page.waitForTimeout(5000);
-
-  await clickAsaba(page, 'Manage Candidates');
-  await page.waitForTimeout(3000);
-
-  // Retry search up to 3 times (search index may lag)
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    await runQuickSearch(page, talentId);
-    const row = await waitForInFrames(page, `tr:has-text("${talentId}")`, 15000).catch(() => null);
-    if (row) { await row.locator.first().click(); break; }
-    if (attempt === 3) throw new Error(`Talent ${talentId} not found in Manage Candidates after 3 attempts`);
-    await page.waitForTimeout(5000);
-  }
-
-  await clickAsaba(page, 'Make Candidate');
-  await selectCandidateStatusType(page, 'talent_applied_online');
-  await clickNextButton(page);
-  await clickAsaba(page, 'Save');
-  await page.waitForTimeout(2000);
-}
-
-/** Select the candidate and send a gather email. */
-async function gatherTalent(page, talentId, emailSubject, timestamp) {
-  await page.waitForTimeout(3000);
-  await waitForInFrames(page, 'tr[data-key]', 30000);
-
-  let found = false;
-  for (const frame of page.frames()) {
-    const row = frame.locator(`tr[data-key="${talentId}"]`);
-    if (await row.count().catch(() => 0) > 0) {
-      await row.first().click();
-      found = true;
-      break;
-    }
-  }
-  if (!found) throw new Error(`Candidate row not found for talent ${talentId}`);
-
-  await clickAsaba(page, 'Message');
-  await page.waitForTimeout(5000);
-  await sendGatherEmail(page, emailSubject, timestamp);
-}
-
 /**
- * Poll Mailinator for the gather email and extract the APPLY link.
- * Reuses the verifyEmailsViaMailinator helper (same pattern as sibling spec files).
+ * Searches Mailinator for the gather email using job_description as the body
+ * search text (same pattern as order_gather_email_talent_responses.spec.js),
+ * then extracts the "Apply / interested" gather link.
+ *
+ * @param {import('@playwright/test').Page} page - Playwright page (kept alive during polling)
+ * @param {string[]} candidateEmails - Array of talent email addresses
+ * @param {string} jobDescription - Text from data.new_york.job_description used to identify the email
+ * @returns {Promise<string>} The extracted apply gather URL
  */
-async function getApplyGatherLink(candidateEmails, searchText) {
+async function findApplyGatherLink(page, candidateEmails, jobDescription) {
+  // verifyEmailsViaMailinator searches the email *body* for expectedBodyText.
+  // The gather email body contains the job description, NOT the dynamic email subject/timestamp.
+  // This mirrors the pattern used in order_gather_email_talent_responses.spec.js.
   const emailResults = await verifyEmailsViaMailinator(
     candidateEmails,
-    searchText,
+    jobDescription,
     MAILINATOR_API_TOKEN,
     { timeout: 120000, pollInterval: 10000 }
   );
 
   const foundResult = emailResults.find(r => r.found);
   if (!foundResult) {
-    throw new Error(`No gather email found in Mailinator for: "${searchText}"`);
+    throw new Error(`No gather email found in Mailinator containing: "${jobDescription}"`);
   }
 
   const emailBodyContent = foundResult.bodyText || '';
+
+  // Debug: log all gather links found so we can diagnose link extraction issues
   const allGatherLinks = [...emailBodyContent.matchAll(/href="([^"]*\/gather\/[^"]*)"/gi)];
+  console.log(`All gather links found in email (${allGatherLinks.length} total):`);
+  allGatherLinks.forEach((m, i) => console.log(`  [${i}] ${m[1]}`));
+
+  // The "apply / interested" link uses /availability or /main (never /not-interested)
   const applyLink = allGatherLinks.find(m =>
     !m[1].includes('not-interested') &&
     (m[1].includes('/availability') || m[1].includes('/main') || m[1].includes('/apply'))
   );
 
   if (!applyLink) {
-    throw new Error('Could not find APPLY link in gather email body');
+    throw new Error('Could not find APPLY gather link in email body');
   }
 
-  console.log(`Apply gather link found: ${applyLink[1]}`);
+  console.log(`Apply gather link: ${applyLink[1]}`);
   return applyLink[1];
 }
 
-// ─── Test suite ──────────────────────────────────────────────────────────────
+// ─── Test suite ───────────────────────────────────────────────────────────────
 
 test.describe('CloudWall - Order Module - THP VMS Submittals @ARB-2186', () => {
-  test.setTimeout(600000); // 10 min: talent UI creation + order DB + email polling
+  test.setTimeout(600000); // 10 min: talent UI + DB order + Mailinator polling
 
   let data;
   let timestamp;
+  let orderId;
+  let talent;
+  let candidateEmails;
 
-  test.beforeEach(async () => {
+  test.beforeEach(async ({ page }) => {
     clearSessionCache();
-    data = loadSpecData('data/yaml/cloudwall/order/order_gather_email_talent_responses_spec.yaml');
+    data      = loadSpecData('data/yaml/cloudwall/order/order_gather_email_talent_responses_spec.yaml');
     timestamp = generateTimestamp();
+
+    await visitAndLogin(page, config);
+
+    // ── Create talent via UI ──────────────────────────────────────────────────
+    talent = await createTalentViaUI(page, data.talent_to_setup, config);
+    console.log(`Talent created → ID: ${talent.id} | Email: ${talent.email}`);
+    candidateEmails = [talent.email];
+
+    // ── Create order via DB ───────────────────────────────────────────────────
+    orderId = await createNewNyMarvelCartoonTestOrderWithoutPostingFromDb(null, { config });
+    if (!orderId) throw new Error('Order creation returned null');
+    console.log(`Order created → ID: ${orderId}`);
+
+    // ── Navigate to order and create a posting ────────────────────────────────
+    await page.goto(`https://${config.webHost}/webwall/open/entity/${orderId}?entityType=4&marketId=11`);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(5000);
+
+    await clickAsaba(page, 'New Posting');
+    await createPostingSimple(page, data.new_york);
+
+    // Navigate back to Manage Candidates
+    const manageCandidatesBtn = await findInFrames(page, 'div.ButtonNormal:has-text("Manage Candidates")', 2000);
+    if (manageCandidatesBtn) {
+      await manageCandidatesBtn.locator.click();
+    } else {
+      await page.goto(`https://${config.webHost}/webwall/open/entity/${orderId}?entityType=4&marketId=11`);
+      await page.waitForLoadState('networkidle');
+      await page.waitForTimeout(3000);
+      await clickAsaba(page, 'Manage Candidates');
+    }
+    await page.waitForTimeout(3000);
+
+    // ── Add talent as candidate ───────────────────────────────────────────────
+    await runQuickSearch(page, talent.id);
+
+    let searchResult = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      searchResult = await waitForInFrames(page, `tr:has-text("${talent.id}")`, 10000).catch(() => null);
+      if (searchResult) break;
+      console.log(`Talent ${talent.id} not found in search (attempt ${attempt}/3), retrying...`);
+      await page.waitForTimeout(5000);
+      await runQuickSearch(page, talent.id);
+    }
+    if (!searchResult) throw new Error(`Could not find talent ${talent.id} in Manage Candidates after 3 attempts`);
+
+    await searchResult.locator.first().click();
+    await clickAsaba(page, 'Make Candidate');
+    await selectCandidateStatusType(page, 'talent_applied_online');
+    await clickNextButton(page);
+    await clickAsaba(page, 'Save');
+    await page.waitForTimeout(2000);
   });
 
+  // ──────────────────────────────────────────────────────────────────────────
   test(
     'should complete all selected options for VMS configuration and route talent to the Thank You page',
     async ({ page }) => {
-      await visitAndLogin(page, config);
+      // ── Step 1: Select all candidates and send gather email ───────────────
+      await page.waitForTimeout(3000);
+      await waitForInFrames(page, 'tr[data-key]', 30000);
 
-      // ── Step 1: Create talent via UI ──────────────────────────────────────
-      const talent = await createAndViewTalent(page, data.talent_to_setup);
+      await selectAll(page);
+      await clickAsaba(page, 'Message');
+      await page.waitForTimeout(5000);
 
-      // ── Step 2: Create order (financial.vms_name = Fieldglass) + posting ──
-      const postingData = data.new_york;
-      const orderId     = await createOrderWithPosting(page, postingData, timestamp);
+      // emailBody matches data.email_body in the YAML: 'Gather Email Talent Response Test: '
+      const emailBody = `${data.email_body}VMS_THP ${timestamp}`;
+      await sendGatherEmail(page, emailBody, timestamp);
 
-      // ── Step 3: Add talent as candidate ───────────────────────────────────
-      await addTalentAsCandidate(page, orderId, talent.id);
+      // ── Step 2: Find the Apply link in Mailinator ─────────────────────────
+      // Search by job_description (appears in email body), NOT the dynamic subject —
+      // this is the same strategy used in order_gather_email_talent_responses.spec.js
+      const applyLink = await findApplyGatherLink(page, candidateEmails, data.new_york.job_description);
 
-      // ── Step 4: Send gather email from Manage Candidates ──────────────────
-      const emailSubject = `${postingData.job_title} ${timestamp}`;
-      await gatherTalent(page, talent.id, emailSubject, timestamp);
-
-      // ── Step 5: Retrieve APPLY link from Mailinator ───────────────────────
-      const candidateEmails = [talent.email];
-      const applyLink = await getApplyGatherLink(candidateEmails, emailSubject);
-
-      // ── Step 6: Talent navigates to gather portal ─────────────────────────
+      // ── Step 3: Talent navigates to the gather portal ─────────────────────
       await page.goto(applyLink);
       await page.waitForLoadState('networkidle');
       await page.waitForTimeout(3000);
       await dismissCookieBanner(page);
 
-      // Confirm we landed on the interested (non-rejection) path
+      // Confirm we are on the interested (non-rejection) path
       expect(page.url()).toContain('/gather/');
       expect(page.url()).not.toContain('not-interested');
 
-      // ── Step 7: Complete all VMS submittal options ────────────────────────
+      // ── Step 4: Complete all VMS submittal options ────────────────────────
 
-      // 7a. Availability — select "Available now" if present
+      // 4a. Availability — select "Available now" if present
       const availNow = page.locator(
         'label:has-text("Available now"), label:has-text("Immediately"), input[value="immediately"]'
       ).first();
@@ -217,13 +200,15 @@ test.describe('CloudWall - Order Module - THP VMS Submittals @ARB-2186', () => {
         await availNow.click();
       }
 
-      // 7b. Work authorization questions (VMS-required) — answer Yes
-      const authQuestion = page.locator('label:has-text("Yes")').first();
-      if (await authQuestion.isVisible({ timeout: 5000 }).catch(() => false)) {
-        await authQuestion.click();
+      // 4b. Work authorization (VMS Fieldglass required) — answer Yes to both questions
+      // auth_work_us: 'Are you authorized to work in the US?'
+      // require_sponsorship: 'Do you require a work visa sponsorship now or in the future?'
+      const authYes = page.locator('label:has-text("Yes")').first();
+      if (await authYes.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await authYes.click();
       }
 
-      // 7c. Continue / Next through remaining steps
+      // 4c. Continue / Next through remaining steps
       const continueBtn = page.locator(
         'button:has-text("Continue"), button:has-text("Next"), button:has-text("Submit")'
       ).first();
@@ -232,7 +217,7 @@ test.describe('CloudWall - Order Module - THP VMS Submittals @ARB-2186', () => {
         await page.waitForTimeout(3000);
       }
 
-      // 7d. EEOC step — skip/decline if present
+      // 4d. EEOC step — decline if present
       const skipEeoc = page.locator(
         'button:has-text("Skip"), button:has-text("Decline"), button:has-text("No thanks")'
       ).first();
@@ -241,11 +226,11 @@ test.describe('CloudWall - Order Module - THP VMS Submittals @ARB-2186', () => {
         await page.waitForTimeout(2000);
       }
 
-      // ── Step 8: Verify the Thank You page is displayed ────────────────────
+      // ── Step 5: Verify the Thank You page ────────────────────────────────
       await page.waitForTimeout(3000);
 
       const thankYouHeading = page.locator(
-        'h1:has-text("Thank"), h2:has-text("Thank"), h1:has-text("thank"), ' +
+        'h1:has-text("Thank"), h2:has-text("Thank"), ' +
         '[class*="thank"], [class*="confirmation"], ' +
         'text=/thank you/i, text=/you.re all set/i, text=/submission received/i'
       ).first();
@@ -253,7 +238,7 @@ test.describe('CloudWall - Order Module - THP VMS Submittals @ARB-2186', () => {
       const isThankYouVisible = await thankYouHeading.isVisible({ timeout: 10000 }).catch(() => false);
 
       if (!isThankYouVisible) {
-        // Fallback: check URL for a confirmation segment
+        // Fallback: assert the URL moved to a confirmation/success segment
         const currentUrl = page.url();
         console.log(`Current URL after submittal: ${currentUrl}`);
         expect(
@@ -265,7 +250,7 @@ test.describe('CloudWall - Order Module - THP VMS Submittals @ARB-2186', () => {
         expect(isThankYouVisible).toBe(true);
       }
 
-      console.log('✅ Talent routed to Thank You page after completing VMS submittal options.');
+      console.log('✅ Talent routed to Thank You page after completing all VMS submittal options.');
     }
   );
 });
