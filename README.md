@@ -247,11 +247,3 @@ Orders are created via a database stored procedure (`createNewNyMarvelCartoonTes
 Gather email delivery is verified through the Mailinator API. The `verifyEmailsViaMailinator` helper in `cloudwall_helpers.js` polls the shared `aquent` inbox, filters by subject and recency, and matches emails by content. Rate limit handling and response status checks are built in.
 
 ---
-
-## Known Limitations
-
-- Several helper functions are duplicated between spec files instead of using `cloudwall_helpers.js` (e.g. `dismissCookieBanner`, `formatDateMonthsFromNow`, `checkHostName`).
-- The order and talent gather specs use hardcoded locators instead of the existing page objects in `pages/cloudwall/order/`. Wiring up `ManageCandidates`, `OrderEditDetail`, and the new talent pages is the next refactoring step.
-- The `playwright.config.js` uses ESM `import` syntax but `package.json` sets `"type": "commonjs"` — this works because Playwright transpiles the config file, but all other files use `require()`.
-- Three EEOC tests in `order_gather_email_talent_responses.spec.js` are skipped (`test.skip()`) pending form selector implementation.
-- `order_custom_gather_02.spec.js` has not yet been updated to use fresh talents — it still uses hardcoded talent IDs and may need the same refactoring applied to the other specs.
