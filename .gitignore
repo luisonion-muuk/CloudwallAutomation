@@ -14,3 +14,4 @@ Thumbs.db
 
 # Temp / working files
 tmp/
+.env
