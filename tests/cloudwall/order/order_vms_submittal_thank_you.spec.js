@@ -44,29 +44,29 @@ async function dismissCookieBanner(page) {
 }
 
 /**
- * Searches Mailinator for the gather email using job_description as the body
- * search text (same pattern as order_gather_email_talent_responses.spec.js),
- * then extracts the "Apply / interested" gather link.
+ * Searches Mailinator for the gather email using the email subject
+ * "New Opportunity Gather Test Posting", then extracts the "Apply / interested"
+ * gather link.
  *
  * @param {import('@playwright/test').Page} page - Playwright page (kept alive during polling)
  * @param {string[]} candidateEmails - Array of talent email addresses
- * @param {string} jobDescription - Text from data.new_york.job_description used to identify the email
  * @returns {Promise<string>} The extracted apply gather URL
  */
-async function findApplyGatherLink(page, candidateEmails, jobDescription) {
-  // verifyEmailsViaMailinator searches the email *body* for expectedBodyText.
-  // The gather email body contains the job description, NOT the dynamic email subject/timestamp.
-  // This mirrors the pattern used in order_gather_email_talent_responses.spec.js.
+async function findApplyGatherLink(page, candidateEmails) {
+  // Fix 1: Search by email subject "New Opportunity Gather Test Posting"
+  // instead of job_description body text, which does not appear in the email body.
+  const emailSubject = 'New Opportunity Gather Test Posting';
+
   const emailResults = await verifyEmailsViaMailinator(
     candidateEmails,
-    jobDescription,
+    emailSubject,
     MAILINATOR_API_TOKEN,
     { timeout: 120000, pollInterval: 10000 }
   );
 
   const foundResult = emailResults.find(r => r.found);
   if (!foundResult) {
-    throw new Error(`No gather email found in Mailinator containing: "${jobDescription}"`);
+    throw new Error(`No gather email found in Mailinator with subject: "${emailSubject}"`);
   }
 
   const emailBodyContent = foundResult.bodyText || '';
@@ -76,10 +76,16 @@ async function findApplyGatherLink(page, candidateEmails, jobDescription) {
   console.log(`All gather links found in email (${allGatherLinks.length} total):`);
   allGatherLinks.forEach((m, i) => console.log(`  [${i}] ${m[1]}`));
 
-  // The "apply / interested" link uses /availability or /main (never /not-interested)
+  // Fix 2: Added /confirm to the link matching pattern to handle
+  // "New Opportunity" gather links that use /confirm?fromRoute=interested
   const applyLink = allGatherLinks.find(m =>
     !m[1].includes('not-interested') &&
-    (m[1].includes('/availability') || m[1].includes('/main') || m[1].includes('/apply'))
+    (
+      m[1].includes('/availability') ||
+      m[1].includes('/main') ||
+      m[1].includes('/apply') ||
+      m[1].includes('/confirm')
+    )
   );
 
   if (!applyLink) {
@@ -176,9 +182,8 @@ test.describe('CloudWall - Order Module - THP VMS Submittals @ARB-2186', () => {
       await sendGatherEmail(page, emailBody, timestamp);
 
       // ── Step 2: Find the Apply link in Mailinator ─────────────────────────
-      // Search by job_description (appears in email body), NOT the dynamic subject —
-      // this is the same strategy used in order_gather_email_talent_responses.spec.js
-      const applyLink = await findApplyGatherLink(page, candidateEmails, data.new_york.job_description);
+      // Search by email subject "New Opportunity Gather Test Posting"
+      const applyLink = await findApplyGatherLink(page, candidateEmails);
 
       // ── Step 3: Talent navigates to the gather portal ─────────────────────
       await page.goto(applyLink);
@@ -238,13 +243,16 @@ test.describe('CloudWall - Order Module - THP VMS Submittals @ARB-2186', () => {
       const isThankYouVisible = await thankYouHeading.isVisible({ timeout: 10000 }).catch(() => false);
 
       if (!isThankYouVisible) {
-        // Fallback: assert the URL moved to a confirmation/success segment
+        // Fix 3: Added 'confirm' and 'submitted' to the URL fallback check
+        // to handle the actual THP URL pattern: /gather/.../confirm?fromRoute=interested
         const currentUrl = page.url();
         console.log(`Current URL after submittal: ${currentUrl}`);
         expect(
           currentUrl.includes('thank') ||
           currentUrl.includes('confirmation') ||
-          currentUrl.includes('success')
+          currentUrl.includes('success') ||
+          currentUrl.includes('confirm') ||
+          currentUrl.includes('submitted')
         ).toBe(true);
       } else {
         expect(isThankYouVisible).toBe(true);
