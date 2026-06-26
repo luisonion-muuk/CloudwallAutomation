@@ -222,7 +222,31 @@ test.describe('CloudWall - Order Module - THP VMS Submittals @ARB-2186', () => {
         await page.waitForTimeout(3000);
       }
 
-      // 4d. EEOC step — decline if present
+      // 4d. Representation Agreement — accept if present
+      // The "Apply for Gather Test Posting" page shows a Representation Agreement
+      // that must be accepted before the flow can proceed to the Thank You page.
+      console.log('Checking for Representation Agreement step...');
+      const repAgreementCheckbox = page.locator(
+        'input[type="checkbox"][name*="agree"], input[type="checkbox"][name*="represent"], ' +
+        'input[type="checkbox"][id*="agree"], input[type="checkbox"][id*="represent"]'
+      ).first();
+      if (await repAgreementCheckbox.isVisible({ timeout: 5000 }).catch(() => false)) {
+        console.log('Representation Agreement checkbox found — checking it.');
+        await repAgreementCheckbox.check();
+        await page.waitForTimeout(1000);
+      }
+
+      const repAgreementBtn = page.locator(
+        'button:has-text("Accept"), button:has-text("Agree"), ' +
+        'button:has-text("I Agree"), button:has-text("Continue")'
+      ).first();
+      if (await repAgreementBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+        console.log('Representation Agreement button found — clicking it.');
+        await repAgreementBtn.click();
+        await page.waitForTimeout(3000);
+      }
+
+      // 4e. EEOC step — decline if present
       const skipEeoc = page.locator(
         'button:has-text("Skip"), button:has-text("Decline"), button:has-text("No thanks")'
       ).first();
