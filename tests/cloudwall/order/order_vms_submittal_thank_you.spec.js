@@ -53,8 +53,6 @@ async function dismissCookieBanner(page) {
  * @returns {Promise<string>} The extracted apply gather URL
  */
 async function findApplyGatherLink(page, candidateEmails) {
-  // Fix 1: Search by email subject "New Opportunity Gather Test Posting"
-  // instead of job_description body text, which does not appear in the email body.
   const emailSubject = 'New Opportunity Gather Test Posting';
 
   const emailResults = await verifyEmailsViaMailinator(
@@ -71,13 +69,10 @@ async function findApplyGatherLink(page, candidateEmails) {
 
   const emailBodyContent = foundResult.bodyText || '';
 
-  // Debug: log all gather links found so we can diagnose link extraction issues
   const allGatherLinks = [...emailBodyContent.matchAll(/href="([^"]*\/gather\/[^"]*)"/gi)];
   console.log(`All gather links found in email (${allGatherLinks.length} total):`);
   allGatherLinks.forEach((m, i) => console.log(`  [${i}] ${m[1]}`));
 
-  // Fix 2: Added /confirm to the link matching pattern to handle
-  // "New Opportunity" gather links that use /confirm?fromRoute=interested
   const applyLink = allGatherLinks.find(m =>
     !m[1].includes('not-interested') &&
     (
@@ -177,12 +172,10 @@ test.describe('CloudWall - Order Module - THP VMS Submittals @ARB-2186', () => {
       await clickAsaba(page, 'Message');
       await page.waitForTimeout(5000);
 
-      // emailBody matches data.email_body in the YAML: 'Gather Email Talent Response Test: '
       const emailBody = `${data.email_body}VMS_THP ${timestamp}`;
       await sendGatherEmail(page, emailBody, timestamp);
 
       // ── Step 2: Find the Apply link in Mailinator ─────────────────────────
-      // Search by email subject "New Opportunity Gather Test Posting"
       const applyLink = await findApplyGatherLink(page, candidateEmails);
 
       // ── Step 3: Talent navigates to the gather portal ─────────────────────
@@ -191,7 +184,6 @@ test.describe('CloudWall - Order Module - THP VMS Submittals @ARB-2186', () => {
       await page.waitForTimeout(3000);
       await dismissCookieBanner(page);
 
-      // Confirm we are on the interested (non-rejection) path
       expect(page.url()).toContain('/gather/');
       expect(page.url()).not.toContain('not-interested');
 
@@ -205,9 +197,7 @@ test.describe('CloudWall - Order Module - THP VMS Submittals @ARB-2186', () => {
         await availNow.click();
       }
 
-      // 4b. Work authorization (VMS Fieldglass required) — answer Yes to both questions
-      // auth_work_us: 'Are you authorized to work in the US?'
-      // require_sponsorship: 'Do you require a work visa sponsorship now or in the future?'
+      // 4b. Work authorization — answer Yes if present
       const authYes = page.locator('label:has-text("Yes")').first();
       if (await authYes.isVisible({ timeout: 5000 }).catch(() => false)) {
         await authYes.click();
@@ -222,27 +212,12 @@ test.describe('CloudWall - Order Module - THP VMS Submittals @ARB-2186', () => {
         await page.waitForTimeout(3000);
       }
 
-      // 4d. Representation Agreement — accept if present
-      // The "Apply for Gather Test Posting" page shows a Representation Agreement
-      // that must be accepted before the flow can proceed to the Thank You page.
+      // 4d. Representation Agreement — dismiss by clicking "I'll do this later"
       console.log('Checking for Representation Agreement step...');
-      const repAgreementCheckbox = page.locator(
-        'input[type="checkbox"][name*="agree"], input[type="checkbox"][name*="represent"], ' +
-        'input[type="checkbox"][id*="agree"], input[type="checkbox"][id*="represent"]'
-      ).first();
-      if (await repAgreementCheckbox.isVisible({ timeout: 5000 }).catch(() => false)) {
-        console.log('Representation Agreement checkbox found — checking it.');
-        await repAgreementCheckbox.check();
-        await page.waitForTimeout(1000);
-      }
-
-      const repAgreementBtn = page.locator(
-        'button:has-text("Accept"), button:has-text("Agree"), ' +
-        'button:has-text("I Agree"), button:has-text("Continue")'
-      ).first();
-      if (await repAgreementBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-        console.log('Representation Agreement button found — clicking it.');
-        await repAgreementBtn.click();
+      const doThisLaterBtn = page.locator('button:has-text("I\'ll do this later"), span.mdc-button__label:has-text("I\'ll do this later")');
+      if (await doThisLaterBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+        console.log('Representation Agreement found — clicking "I\'ll do this later".');
+        await doThisLaterBtn.click();
         await page.waitForTimeout(3000);
       }
 
@@ -261,14 +236,12 @@ test.describe('CloudWall - Order Module - THP VMS Submittals @ARB-2186', () => {
       const thankYouHeading = page.locator(
         'h1:has-text("Thank"), h2:has-text("Thank"), ' +
         '[class*="thank"], [class*="confirmation"], ' +
-        'text=/thank you/i, text=/you.re all set/i, text=/submission received/i'
+        'text=/thank you/i, text=/you\'re all set/i, text=/submission received/i'
       ).first();
 
       const isThankYouVisible = await thankYouHeading.isVisible({ timeout: 10000 }).catch(() => false);
 
       if (!isThankYouVisible) {
-        // Fix 3: Added 'confirm' and 'submitted' to the URL fallback check
-        // to handle the actual THP URL pattern: /gather/.../confirm?fromRoute=interested
         const currentUrl = page.url();
         console.log(`Current URL after submittal: ${currentUrl}`);
         expect(
