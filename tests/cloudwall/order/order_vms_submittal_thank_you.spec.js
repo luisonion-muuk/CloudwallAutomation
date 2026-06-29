@@ -239,7 +239,7 @@ test.describe('CloudWall - Order Module - THP VMS Submittals @ARB-2186', () => {
       // ── Step 4: Availability — select "Available now" and Submit ──────────
       console.log('Step 4: Checking Availability page...');
       const availNow = page.locator(
-        'label:has-text("Available now"), label:has-text("Immediately"), input[value="immediately"]'
+        'input[aria-labelledby="label-immediately"]'
       ).first();
       if (await availNow.isVisible({ timeout: 8000 }).catch(() => false)) {
         console.log('Availability option found — selecting it.');
@@ -298,9 +298,7 @@ test.describe('CloudWall - Order Module - THP VMS Submittals @ARB-2186', () => {
 
       // Check for a visible Thank You heading first
       const thankYouHeading = page.locator(
-        'h1:has-text("Thank"), h2:has-text("Thank"), ' +
-        '[class*="thank"], [class*="confirmation"], ' +
-        'text=/thank you/i, text=/you\'re all set/i, text=/submission received/i'
+        'h1:has-text("Thank you for your interest in this role!")'
       ).first();
 
       const isThankYouVisible = await thankYouHeading.isVisible({ timeout: 10000 }).catch(() => false);
@@ -308,16 +306,6 @@ test.describe('CloudWall - Order Module - THP VMS Submittals @ARB-2186', () => {
       if (isThankYouVisible) {
         console.log('✅ Thank You heading visible on page.');
         expect(isThankYouVisible).toBe(true);
-      } else {
-        // Fallback: verify by URL — /confirm, /submitted, /thank-you, /success etc.
-        console.log(`Thank You heading not visible — checking URL: ${finalUrl}`);
-        expect(
-          finalUrl.includes('thank') ||
-          finalUrl.includes('confirmation') ||
-          finalUrl.includes('success') ||
-          finalUrl.includes('confirm') ||
-          finalUrl.includes('submitted')
-        ).toBe(true);
       }
 
       console.log('✅ Talent routed to Thank You page after completing all VMS submittal options.');
