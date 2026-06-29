@@ -34,12 +34,22 @@ const MAILINATOR_API_TOKEN = process.env.MAILINATOR_API_TOKEN;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/** Dismiss OneTrust cookie banner if present. */
+/**
+ * Dismiss OneTrust cookie banner if present.
+ * Waits for the banner to fully disappear before returning so subsequent
+ * interactions are not blocked by the overlay.
+ */
 async function dismissCookieBanner(page) {
   const btn = page.locator('#onetrust-reject-all-handler');
-  if (await btn.isVisible({ timeout: 2000 }).catch(() => false)) {
+  if (await btn.isVisible({ timeout: 5000 }).catch(() => false)) {
+    console.log('Cookie banner found — dismissing.');
     await btn.click();
-    await page.waitForTimeout(1000);
+    // Wait for the banner to disappear completely before proceeding
+    await page.locator('#onetrust-banner-sdk').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+    await page.waitForTimeout(2000);
+    console.log('Cookie banner dismissed.');
+  } else {
+    console.log('No cookie banner found.');
   }
 }
 
@@ -212,7 +222,14 @@ test.describe('CloudWall - Order Module - THP VMS Submittals @ARB-2186', () => {
       await page.goto(applyLink);
       await page.waitForLoadState('networkidle');
       await page.waitForTimeout(3000);
+
+      // Dismiss cookie banner and wait for it to fully disappear
+      // before interacting with any other page elements
       await dismissCookieBanner(page);
+
+      // Extra wait to ensure the page re-renders fully after banner removal
+      await page.waitForLoadState('domcontentloaded');
+      await page.waitForTimeout(2000);
 
       const landingUrl = page.url();
       console.log(`Landing URL: ${landingUrl}`);
@@ -220,32 +237,33 @@ test.describe('CloudWall - Order Module - THP VMS Submittals @ARB-2186', () => {
       expect(landingUrl).not.toContain('not-interested');
 
       // ── Step 4: Availability — select "Available now" and Submit ──────────
-      // The sibling spec (BIZ-20841) confirms the availability page shows
-      // an Availability heading + Submit button when coming via /availability.
-      // For VMS /confirm links this step may be skipped automatically.
       console.log('Step 4: Checking Availability page...');
       const availNow = page.locator(
         'label:has-text("Available now"), label:has-text("Immediately"), input[value="immediately"]'
       ).first();
-      if (await availNow.isVisible({ timeout: 5000 }).catch(() => false)) {
+      if (await availNow.isVisible({ timeout: 8000 }).catch(() => false)) {
         console.log('Availability option found — selecting it.');
         await availNow.click();
         await page.waitForTimeout(1000);
         await clickButtonByLabel(page, 'Submit', 5000);
         await page.waitForLoadState('networkidle');
         await page.waitForTimeout(3000);
+      } else {
+        console.log('Availability step not present — skipping.');
       }
 
       // ── Step 5: Work authorization — answer Yes if present ────────────────
       console.log('Step 5: Checking Work Authorization...');
       const authYes = page.locator('label:has-text("Yes")').first();
-      if (await authYes.isVisible({ timeout: 5000 }).catch(() => false)) {
+      if (await authYes.isVisible({ timeout: 8000 }).catch(() => false)) {
         console.log('Work authorization question found — selecting Yes.');
         await authYes.click();
         await page.waitForTimeout(1000);
         await clickButtonByLabel(page, 'Continue', 5000);
         await page.waitForLoadState('networkidle');
         await page.waitForTimeout(3000);
+      } else {
+        console.log('Work authorization step not present — skipping.');
       }
 
       // ── Step 6: Representation Agreement ─────────────────────────────────
@@ -257,6 +275,8 @@ test.describe('CloudWall - Order Module - THP VMS Submittals @ARB-2186', () => {
         console.log('Representation Agreement dismissed — waiting for navigation.');
         await page.waitForLoadState('networkidle');
         await page.waitForTimeout(3000);
+      } else {
+        console.log('Representation Agreement not present — skipping.');
       }
 
       // ── Step 7: EEOC — skip if present ───────────────────────────────────
@@ -267,6 +287,8 @@ test.describe('CloudWall - Order Module - THP VMS Submittals @ARB-2186', () => {
       if (skippedEeoc) {
         await page.waitForLoadState('networkidle');
         await page.waitForTimeout(2000);
+      } else {
+        console.log('EEOC step not present — skipping.');
       }
 
       // ── Step 8: Verify the Thank You page ────────────────────────────────
@@ -288,6 +310,7 @@ test.describe('CloudWall - Order Module - THP VMS Submittals @ARB-2186', () => {
         expect(isThankYouVisible).toBe(true);
       } else {
         // Fallback: verify by URL — /confirm, /submitted, /thank-you, /success etc.
+        console.log(`Thank You heading not visible — checking URL: ${finalUrl}`);
         expect(
           finalUrl.includes('thank') ||
           finalUrl.includes('confirmation') ||
