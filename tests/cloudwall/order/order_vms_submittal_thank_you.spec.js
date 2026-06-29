@@ -46,11 +46,7 @@ async function dismissCookieBanner(page) {
 /**
  * Searches Mailinator for the gather email using the email subject
  * "New Opportunity Gather Test Posting", then extracts the "Apply / interested"
- * gather link.
- *
- * @param {import('@playwright/test').Page} page - Playwright page (kept alive during polling)
- * @param {string[]} candidateEmails - Array of talent email addresses
- * @returns {Promise<string>} The extracted apply gather URL
+ * gather link (/availability or /main).
  */
 async function findApplyGatherLink(page, candidateEmails) {
   const emailSubject = 'New Opportunity Gather Test Posting';
@@ -73,6 +69,8 @@ async function findApplyGatherLink(page, candidateEmails) {
   console.log(`All gather links found in email (${allGatherLinks.length} total):`);
   allGatherLinks.forEach((m, i) => console.log(`  [${i}] ${m[1]}`));
 
+  // The apply link uses /availability or /main (matches sibling spec pattern)
+  // Must exclude not-interested links
   const applyLink = allGatherLinks.find(m =>
     !m[1].includes('not-interested') &&
     (
@@ -184,55 +182,82 @@ test.describe('CloudWall - Order Module - THP VMS Submittals @ARB-2186', () => {
       await page.waitForTimeout(3000);
       await dismissCookieBanner(page);
 
-      expect(page.url()).toContain('/gather/');
-      expect(page.url()).not.toContain('not-interested');
+      // Confirm we landed on the interested (non-rejection) path
+      const landingUrl = page.url();
+      console.log(`Landing URL: ${landingUrl}`);
+      expect(landingUrl).toContain('/gather/');
+      expect(landingUrl).not.toContain('not-interested');
 
-      // ── Step 4: Complete all VMS submittal options ────────────────────────
-
-      // 4a. Availability — select "Available now" if present
+      // ── Step 4: Availability page — select "Available now" and Submit ─────
+      // The sibling spec confirms this page shows an Availability heading + Submit button
+      console.log('Step 4: Handling Availability page...');
       const availNow = page.locator(
         'label:has-text("Available now"), label:has-text("Immediately"), input[value="immediately"]'
       ).first();
-      if (await availNow.isVisible({ timeout: 5000 }).catch(() => false)) {
+      if (await availNow.isVisible({ timeout: 8000 }).catch(() => false)) {
+        console.log('Availability option found — selecting it.');
         await availNow.click();
+        await page.waitForTimeout(1000);
       }
 
-      // 4b. Work authorization — answer Yes if present
+      // Submit the availability form
+      const submitBtn = page.locator('button:has-text("Submit")').first();
+      if (await submitBtn.isVisible({ timeout: 8000 }).catch(() => false)) {
+        console.log('Submit button found — clicking it.');
+        await submitBtn.click();
+        await page.waitForLoadState('networkidle');
+        await page.waitForTimeout(3000);
+      }
+
+      // ── Step 5: Work authorization — answer Yes if present ────────────────
+      console.log('Step 5: Handling Work Authorization...');
       const authYes = page.locator('label:has-text("Yes")').first();
       if (await authYes.isVisible({ timeout: 5000 }).catch(() => false)) {
+        console.log('Work authorization question found — selecting Yes.');
         await authYes.click();
+        await page.waitForTimeout(1000);
       }
 
-      // 4c. Continue / Next through remaining steps
+      // Continue / Next if present
       const continueBtn = page.locator(
-        'button:has-text("Continue"), button:has-text("Next"), button:has-text("Submit")'
+        'button:has-text("Continue"), button:has-text("Next")'
       ).first();
       if (await continueBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
         await continueBtn.click();
+        await page.waitForLoadState('networkidle');
         await page.waitForTimeout(3000);
       }
 
-      // 4d. Representation Agreement — dismiss by clicking "I'll do this later"
-      console.log('Checking for Representation Agreement step...');
-      const doThisLaterBtn = page.locator('button:has-text("I\'ll do this later"), span.mdc-button__label:has-text("I\'ll do this later")');
-      if (await doThisLaterBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+      // ── Step 6: Representation Agreement — dismiss "I'll do this later" ───
+      console.log('Step 6: Checking for Representation Agreement...');
+      const doThisLaterBtn = page.locator(
+        'button:has-text("I\'ll do this later"), span.mdc-button__label:has-text("I\'ll do this later")'
+      ).first();
+      if (await doThisLaterBtn.isVisible({ timeout: 8000 }).catch(() => false)) {
         console.log('Representation Agreement found — clicking "I\'ll do this later".');
         await doThisLaterBtn.click();
+        await page.waitForLoadState('networkidle');
         await page.waitForTimeout(3000);
       }
 
-      // 4e. EEOC step — decline if present
+      // ── Step 7: EEOC step — decline if present ────────────────────────────
+      console.log('Step 7: Checking for EEOC step...');
       const skipEeoc = page.locator(
         'button:has-text("Skip"), button:has-text("Decline"), button:has-text("No thanks")'
       ).first();
       if (await skipEeoc.isVisible({ timeout: 5000 }).catch(() => false)) {
+        console.log('EEOC step found — skipping.');
         await skipEeoc.click();
+        await page.waitForLoadState('networkidle');
         await page.waitForTimeout(2000);
       }
 
-      // ── Step 5: Verify the Thank You page ────────────────────────────────
+      // ── Step 8: Verify the Thank You page ────────────────────────────────
       await page.waitForTimeout(3000);
+      const finalUrl = page.url();
+      console.log(`Final URL after full submittal: ${finalUrl}`);
 
+      // Check for a visible Thank You heading first
       const thankYouHeading = page.locator(
         'h1:has-text("Thank"), h2:has-text("Thank"), ' +
         '[class*="thank"], [class*="confirmation"], ' +
@@ -241,18 +266,19 @@ test.describe('CloudWall - Order Module - THP VMS Submittals @ARB-2186', () => {
 
       const isThankYouVisible = await thankYouHeading.isVisible({ timeout: 10000 }).catch(() => false);
 
-      if (!isThankYouVisible) {
-        const currentUrl = page.url();
-        console.log(`Current URL after submittal: ${currentUrl}`);
-        expect(
-          currentUrl.includes('thank') ||
-          currentUrl.includes('confirmation') ||
-          currentUrl.includes('success') ||
-          currentUrl.includes('confirm') ||
-          currentUrl.includes('submitted')
-        ).toBe(true);
-      } else {
+      if (isThankYouVisible) {
+        console.log('✅ Thank You heading is visible on page.');
         expect(isThankYouVisible).toBe(true);
+      } else {
+        // Fallback: check the URL contains a known THP pattern
+        // The app routes to: /gather/{uuid}/confirm?fromRoute=interested
+        expect(
+          finalUrl.includes('thank') ||
+          finalUrl.includes('confirmation') ||
+          finalUrl.includes('success') ||
+          finalUrl.includes('confirm') ||
+          finalUrl.includes('submitted')
+        ).toBe(true);
       }
 
       console.log('✅ Talent routed to Thank You page after completing all VMS submittal options.');
